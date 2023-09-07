@@ -1,0 +1,78 @@
+# The LAMMPS code of computed density
+
+
+
+
+# ------------------------------------------------------------------------------
+#                    Atom Definition and General MD Settings
+# ------------------------------------------------------------------------------
+
+units real
+boundary p p p
+neighbor 3.0 bin
+neigh_modify every 1 delay 0 check yes
+atom_style full
+bond_style harmonic
+angle_style harmonic
+dihedral_style opls
+improper_style cvff
+pair_style   lj/cut/coul/long 12
+pair_modify mix geometric
+special_bonds lj/coul 0.0 0.0 0.5
+kspace_style pppm 0.0001
+
+read_data "system.data"
+include "system.in.settings"
+
+minimize 0.0 1.0e-8 1000 100000
+
+
+# ------------------------------------------------------------------------------
+#                     Simulation Parameters
+# ------------------------------------------------------------------------------
+
+variable	T0   equal 275
+variable 	P0   equal 1.0
+variable    DT   equal 1
+variable    seed equal 5645354
+
+variable    density equal density
+variable 	vol equal vol
+variable 	etotal equal etotal
+variable    pe equal pe
+variable    ke equal ke
+variable    temperature equal temp
+variable    pressure equal press
+
+
+# ------------------------------------------------------------------------------
+#                     Equilibrium
+# ------------------------------------------------------------------------------
+
+timestep ${DT}
+thermo 1000
+thermo_style custom step temp  press density pe ke etotal lx ly lz vol  
+thermo_modify flush yes
+velocity all create ${T0} ${seed} loop local dist gaussian
+
+fix   fixnpt1 all npt temp ${T0} ${T0} 100 iso ${P0} ${P0} 1000 
+run 50000000
+unfix fixnpt1
+fix   fixnvt1  all nvt temp ${T0} ${T0} 100 
+run  5000000	   
+unfix        fixnvt1    
+
+write_data  viscosity.data
+write_restart restart.equil
+
+
+# ------------------------------------------------------------------------------
+#                     Prediction density 
+# ------------------------------------------------------------------------------
+
+fix 		fixnpt2 all npt temp ${T0} ${T0} 100 iso ${P0} ${P0} 1000
+fix         density all ave/time 10 1000 10000 v_density ave one file pro.density_one.out
+thermo		10000	
+thermo_style   	custom step temp vol press pe etotal density vol
+run		5000000	
+unfix		fixnpt2

@@ -1,0 +1,95 @@
+ # The LAMMPS code of EMD.in
+
+
+# ------------------------------------------------------------------------------
+#                    Atom Definition and General MD Settings
+# ------------------------------------------------------------------------------
+
+units real
+boundary p p p
+neighbor 3.0 bin
+neigh_modify every 1 delay 0 check yes
+atom_style full
+bond_style harmonic
+angle_style harmonic
+dihedral_style opls
+improper_style cvff
+pair_style   lj/cut/coul/long 12
+pair_modify mix geometric
+special_bonds lj/coul 0.0 0.0 0.5
+kspace_style pppm 0.0001
+
+read_data chiyu.data
+#include "system.in.settings"
+#change_box all triclinic  
+
+# ------------------------------------------------------------------------------
+#                     Simulation Parameters
+# ------------------------------------------------------------------------------
+
+variable	T0   equal 275
+variable 	P0   equal 1.0
+variable  DT   equal 1
+variable  seed equal 5645354
+variable  atm2pa equal 101325
+variable  fs2s   equal 1e-15
+
+variable    kB equal 1.3806504e-23
+variable    g_mol2kg equal 1.0e-3/6.02214e23
+variable    A2m equal 1.0e-10
+variable    fs2s equal 1.0e-15
+variable    atm2pa equal 1.01325e5
+variable    convert_eta equal ${atm2pa}*${atm2pa}*${A2m}*${A2m}*${A2m}*${fs2s}
+
+variable    p equal 10000     # correlation length
+variable    s equal 10       # sample interval
+variable    d equal $p*$s   # dump interval
+  
+# ------------------------------------------------------------------------------
+#                     Equilibrium
+# ------------------------------------------------------------------------------
+
+timestep 2
+thermo 1000
+thermo_style custom step temp  press density pe ke etotal lx ly lz vol  
+thermo_modify flush yes
+velocity all create ${T0} ${seed} loop local dist gaussian
+
+fix   fixnpt1 all npt temp ${T0} ${T0} 200 iso ${P0} ${P0} 2000
+run   5000000
+unfix fixnpt1
+fix   fixnvt1  all nvt temp ${T0} ${T0} 200
+run   5000000
+
+  
+unfix        fixnvt1  
+
+# ------------------------------------------------------------------------------
+#                     Compute 
+# ------------------------------------------------------------------------------
+
+reset_timestep 0
+timestep 1
+fix   fixnvt1  all nvt temp ${T0} ${T0} 100
+thermo          $d
+variable         pxy equal pxy
+variable         pxx equal pxx-press
+variable         pxz equal pxz
+variable         pzz equal pzz-press
+variable         pyz equal pyz
+variable         pyy equal pyy-press
+fix              SS all ave/correlate $s $p $d v_pxy v_pxx v_pxz v_pzz v_pyz v_pyy type auto file profile.gk ave running
+
+variable         scale equal 1.0/${T0}/${kB}*vol*$s*${DT}
+variable         diagfac equal 2-2/3
+variable         vxy equal trap(f_SS[3])*${scale}*${convert_eta}
+variable         vxx equal trap(f_SS[4])*${scale}/${diagfac}*${convert_eta}
+variable         vxz equal trap(f_SS[5])*${scale}*${convert_eta}
+variable         vzz equal trap(f_SS[6])*${scale}/${diagfac}*${convert_eta}
+variable         vyz equal trap(f_SS[7])*${scale}*${convert_eta}
+variable         vyy equal trap(f_SS[8])*${scale}/${diagfac}*${convert_eta}
+
+thermo_style     custom step temp press pxy pxz pyz v_vxy  v_vxz  v_vyz v_vxx  v_vyy  v_vzz 
+thermo_modify flush yes
+
+run             50000000

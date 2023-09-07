@@ -1,0 +1,92 @@
+# The LAMMPS code of NEMD.in
+
+
+# ------------------------------------------------------------------------------
+#                    Atom Definition and General MD Settings
+# ------------------------------------------------------------------------------
+
+units real
+boundary p p p
+neighbor 3.0 bin
+neigh_modify every 1 delay 0 check yes
+atom_style full
+bond_style harmonic
+angle_style harmonic
+dihedral_style opls
+improper_style cvff
+pair_style   lj/cut/coul/long 12
+pair_modify mix geometric
+special_bonds lj/coul 0.0 0.0 0.5
+
+
+read_data chiyu.data
+#include "system.in.settings"
+change_box all triclinic 
+kspace_style pppm 0.0001
+
+#minimize 0.0 1.0e-8 1000 100000
+
+
+# ------------------------------------------------------------------------------
+#                     Simulation Parameters
+# ------------------------------------------------------------------------------
+
+variable	T0   equal 275
+variable 	P0   equal 1.0
+variable  DT   equal 1
+variable  seed equal 5645354
+variable  atm2pa equal 101325
+variable  fs2s   equal 1e-15
+
+variable	srate0   equal 1e7
+variable  srate    equal ${srate0}/1e15
+variable  pressure equal press
+variable  density  equal density
+
+
+
+# ------------------------------------------------------------------------------
+#                     Equilibrium
+# ------------------------------------------------------------------------------
+
+timestep 2
+thermo 1000
+thermo_style custom step temp  press density pe ke etotal lx ly lz vol  
+thermo_modify flush yes
+velocity all create ${T0} ${seed} loop local dist gaussian
+
+fix   fixnpt1 all npt temp ${T0} ${T0} 100 iso ${P0} ${P0} 1000 
+run   1000
+unfix fixnpt1
+fix   fixnvt1  all nvt temp ${T0} ${T0} 100 
+run   1000
+    
+unfix        fixnvt1  
+
+# ------------------------------------------------------------------------------
+#                     Compute 
+# ------------------------------------------------------------------------------
+
+reset_timestep 0
+timestep ${DT}
+
+fix		computte1 all nvt/sllod temp  ${T0} ${T0} 100
+fix		computte2 all deform 1 xy erate ${srate} remap v
+
+compute		usual all temp
+compute		tilt all temp/deform
+
+thermo          1000
+thermo_style	custom step temp c_usual epair etotal press pxy
+thermo_modify	temp tilt flush yes
+run		10000
+
+variable	visc equal -pxy/(v_srate)*v_atm2pa*v_fs2s
+fix		vave all ave/time 10 100 1000 v_visc ave running start 5100000
+
+thermo         1000
+thermo_style	custom step temp press pxy v_visc f_vave
+thermo_modify	temp tilt
+
+run		10000
+

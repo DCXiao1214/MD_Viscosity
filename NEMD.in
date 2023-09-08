@@ -56,10 +56,10 @@ thermo_modify flush yes
 velocity all create ${T0} ${seed} loop local dist gaussian
 
 fix   fixnpt1 all npt temp ${T0} ${T0} 100 iso ${P0} ${P0} 1000 
-run   1000
+run   5000000
 unfix fixnpt1
 fix   fixnvt1  all nvt temp ${T0} ${T0} 100 
-run   1000
+run   5000000
     
 unfix        fixnvt1  
 
@@ -79,7 +79,7 @@ compute		tilt all temp/deform
 thermo          1000
 thermo_style	custom step temp c_usual epair etotal press pxy
 thermo_modify	temp tilt flush yes
-run		10000
+run		5000000
 
 variable	visc equal -pxy/(v_srate)*v_atm2pa*v_fs2s
 fix		vave all ave/time 10 100 1000 v_visc ave running start 5100000
@@ -88,5 +88,5 @@ thermo         1000
 thermo_style	custom step temp press pxy v_visc f_vave
 thermo_modify	temp tilt
 
-run		10000
+run		15000000
 
